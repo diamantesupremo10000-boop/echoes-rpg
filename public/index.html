@@ -3,25 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
-    <title>Echoes Mobile ARPG</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0c">
+    <link rel="manifest" href="manifest.json">
+    <title>Echoes Mobile</title>
     <style>
-        * { -webkit-tap-highlight-color: transparent; outline: none; }
         body { 
             margin: 0; padding: 0; background: #000; overflow: hidden; 
-            touch-action: none; user-select: none;
+            touch-action: none; user-select: none; -webkit-user-select: none;
         }
-        #game-container { width: 100vw; height: 100vh; }
-        #ui-status {
-            position: absolute; top: env(safe-area-inset-top, 20px); left: 20px;
-            color: #00f2ff; font-family: monospace; pointer-events: none;
-            text-shadow: 0 0 5px #000; z-index: 10;
+        #game-ui {
+            position: absolute; top: 20px; left: 20px; color: #00f2ff;
+            font-family: 'Courier New', monospace; pointer-events: none; z-index: 10;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
-    <div id="ui-status">SISTEMA: ACTIVO <br> ECOS: <span id="echo-count">0</span></div>
+    <div id="game-ui">ECOS DATA: <span id="echo-val">0</span></div>
     <div id="game-container"></div>
+    <script>
+        // Registrar Service Worker para soporte Offline
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW activo'))
+                    .catch(err => console.log('SW error', err));
+            });
+        }
+    </script>
     <script src="game.js"></script>
 </body>
 </html>
