@@ -2,21 +2,25 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Echoes: Tacet Field</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <title>Echoes Mobile ARPG</title>
     <style>
-        body { margin: 0; background: #0a0a0c; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        * { -webkit-tap-highlight-color: transparent; outline: none; }
+        body { 
+            margin: 0; padding: 0; background: #000; overflow: hidden; 
+            touch-action: none; user-select: none;
+        }
         #game-container { width: 100vw; height: 100vh; }
-        #ui-overlay {
-            position: absolute; top: 20px; left: 20px; color: #00f2ff;
-            text-shadow: 0 0 10px #00f2ff; pointer-events: none;
-            letter-spacing: 2px; font-weight: bold;
+        #ui-status {
+            position: absolute; top: env(safe-area-inset-top, 20px); left: 20px;
+            color: #00f2ff; font-family: monospace; pointer-events: none;
+            text-shadow: 0 0 5px #000; z-index: 10;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
-    <div id="ui-overlay">FRECUENCIA: ESTABLE <br> ECOS: <span id="echo-count">0</span></div>
+    <div id="ui-status">SISTEMA: ACTIVO <br> ECOS: <span id="echo-count">0</span></div>
     <div id="game-container"></div>
     <script src="game.js"></script>
 </body>
