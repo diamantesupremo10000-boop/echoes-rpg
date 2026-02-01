@@ -3,16 +3,14 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+// Servir la carpeta public
 app.use(express.static(path.join(__dirname, 'public')));
 
-let db = {};
-
-app.post('/api/save-echo', (req, res) => {
-    const { userId, type } = req.body;
-    if(!db[userId]) db[userId] = [];
-    db[userId].push({ type, date: new Date() });
-    res.json({ success: true, count: db[userId].length });
+// Ruta principal
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Servidor activo en: http://localhost:${PORT}`);
+});
