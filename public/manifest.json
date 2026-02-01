@@ -1,0 +1,17 @@
+{
+  "short_name": "EchoesRPG",
+  "name": "Echoes: Tacet Field Mobile",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2586/2586488.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "display": "standalone",
+  "theme_color": "#0a0a0c",
+  "background_color": "#0a0a0c",
+  "orientation": "landscape"
+}
