@@ -1,169 +1,150 @@
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
-    parent: 'game-container',
-    backgroundColor: '#2d2d2d',
-    physics: {
-        default: 'arcade',
-        arcade: {
-            debug: false // Pon true para ver las cajas de colisión
-        }
-    },
-    scene: {
-        preload: preload,
-        create: create,
-        update: update
-    }
+    scale: { mode: Phaser.Scale.RESIZE, parent: 'game-container', width: '100%', height: '100%' },
+    physics: { default: 'arcade', arcade: { debug: false } },
+    scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
-
-let player, enemies, echoes;
-let cursors, spaceKey, wasd;
-let isDashing = false;
-let canAttack = true;
-const userId = "player_" + Math.floor(Math.random() * 1000); // ID aleatorio por sesión
+let player, enemies, particles, moveVec = {x:0, y:0}, isDragging = false;
+let joyBase, joyThumb, btnAtk, btnDash, isDashing = false;
 
 function preload() {
-    // Generamos texturas simples al vuelo (Cuadrados de colores)
-    // Esto evita problemas de carga de imágenes externas
     let canvas = document.createElement('canvas');
-    canvas.width = 32; canvas.height = 32;
     let ctx = canvas.getContext('2d');
     
-    // Textura blanca base
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0,0,32,32);
-    this.textures.addBase64('base', canvas.toDataURL());
+    // Generar Glow Disc (Jugador)
+    canvas.width = 64; canvas.height = 64;
+    let grad = ctx.createRadialGradient(32,32,0,32,32,32);
+    grad.addColorStop(0, '#00f2ff'); grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(32,32,30,0,Math.PI*2); ctx.fill();
+    this.textures.addBase64('p_glow', canvas.toDataURL());
+
+    // Partícula de rastro
+    canvas.width = 16; canvas.height = 16;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,16,16);
+    this.textures.addBase64('spark', canvas.toDataURL());
 }
 
 function create() {
-    // 1. JUGADOR (Azul)
-    player = this.physics.add.sprite(400, 300, 'base').setTint(0x00aaff);
-    player.setCollideWorldBounds(true);
-    
-    // 2. ENEMIGOS (Rojos)
+    const { width, height } = this.scale;
+
+    // Fondo "Deep Space"
+    this.add.graphics().fillGradientStyle(0x0a0a0c, 0x0a0a0c, 0x1a1a2e, 0x1a1a2e, 1).fillRect(0,0,width,height);
+
+    // Sistema de partículas (Trail)
+    particles = this.add.particles(0, 0, 'spark', {
+        speed: 100, scale: { start: 0.1, end: 0 }, alpha: { start: 0.5, end: 0 },
+        blendMode: 'ADD', follow: player
+    });
+
+    // Jugador
+    player = this.physics.add.sprite(width/2, height/2, 'p_glow');
+    player.setDamping(true).setDrag(0.1).setCollideWorldBounds(true);
+    particles.startFollow(player);
+
     enemies = this.physics.add.group();
-    spawnEnemy(enemies); // Crear el primero
+    spawnEnemy(this);
 
-    // 3. ECOS / ITEMS (Verdes)
-    echoes = this.physics.add.group();
+    // Controles Estilo WuWa
+    createMobileUI(this, width, height);
 
-    // 4. INPUTS
-    cursors = this.input.keyboard.createCursorKeys();
-    spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    wasd = this.input.keyboard.addKeys({
-        up: Phaser.Input.Keyboard.KeyCodes.W,
-        down: Phaser.Input.Keyboard.KeyCodes.S,
-        left: Phaser.Input.Keyboard.KeyCodes.A,
-        right: Phaser.Input.Keyboard.KeyCodes.D
-    });
-
-    this.input.on('pointerdown', attack, this);
-
-    // 5. COLISIONES
-    this.physics.add.overlap(player, echoes, collectEcho, null, this);
-    this.physics.add.overlap(player, enemies, takeDamage, null, this);
-}
-
-function update() {
-    // Movimiento
-    player.setVelocity(0);
-    let speed = isDashing ? 500 : 200;
-
-    // Soporte para Flechas y WASD
-    if (cursors.left.isDown || wasd.left.isDown) player.setVelocityX(-speed);
-    if (cursors.right.isDown || wasd.right.isDown) player.setVelocityX(speed);
-    if (cursors.up.isDown || wasd.up.isDown) player.setVelocityY(-speed);
-    if (cursors.down.isDown || wasd.down.isDown) player.setVelocityY(speed);
-
-    // DASH / ESQUIVA PERFECTA
-    if (Phaser.Input.Keyboard.JustDown(spaceKey) && !isDashing) {
-        performDash();
-    }
-
-    // IA ENEMIGA
-    enemies.children.iterate((child) => {
-        if (child && child.active) {
-            this.physics.moveToObject(child, player, 100);
+    // Colisiones con efecto
+    this.physics.add.overlap(player, enemies, (p, e) => {
+        if(!isDashing) {
+            this.cameras.main.shake(100, 0.01);
+            p.setTint(0xff0000);
+            setTimeout(() => p.clearTint(), 200);
         }
     });
 }
 
-function performDash() {
+function createMobileUI(scene, w, h) {
+    joyBase = scene.add.circle(120, h - 120, 50, 0xffffff, 0.1).setStrokeStyle(2, 0x00f2ff);
+    joyThumb = scene.add.circle(120, h - 120, 25, 0x00f2ff, 0.5);
+
+    btnAtk = scene.add.circle(w - 100, h - 120, 45, 0x00f2ff, 0.2).setInteractive().setStrokeStyle(3, 0x00f2ff);
+    btnDash = scene.add.circle(w - 200, h - 80, 30, 0xffffff, 0.2).setInteractive().setStrokeStyle(2, 0xffffff);
+
+    scene.input.on('pointerdown', p => {
+        if(p.x < w/2) { isDragging = true; joyBase.setPosition(p.x, p.y); joyThumb.setPosition(p.x, p.y); }
+    });
+
+    scene.input.on('pointermove', p => {
+        if(isDragging) {
+            let dist = Phaser.Math.Distance.Between(joyBase.x, joyBase.y, p.x, p.y);
+            let angle = Phaser.Math.Angle.Between(joyBase.x, joyBase.y, p.x, p.y);
+            let limit = 50;
+            dist = Math.min(dist, limit);
+            joyThumb.setPosition(joyBase.x + Math.cos(angle)*dist, joyBase.y + Math.sin(angle)*dist);
+            moveVec = { x: Math.cos(angle) * (dist/limit), y: Math.sin(angle) * (dist/limit) };
+        }
+    });
+
+    scene.input.on('pointerup', () => { isDragging = false; moveVec = {x:0, y:0}; joyThumb.setPosition(joyBase.x, joyBase.y); });
+
+    btnAtk.on('pointerdown', () => doAttack(scene));
+    btnDash.on('pointerdown', () => doDash(scene));
+}
+
+function doAttack(scene) {
+    // Animación de ataque (Flash circular)
+    let ring = scene.add.circle(player.x, player.y, 10, 0x00f2ff, 0.8);
+    scene.tweens.add({
+        targets: ring, radius: 100, alpha: 0, duration: 200, 
+        onComplete: () => ring.destroy()
+    });
+
+    enemies.children.iterate(e => {
+        if(e && Phaser.Math.Distance.Between(player.x, player.y, e.x, e.y) < 100) {
+            // Efecto Impacto
+            createExplosion(scene, e.x, e.y);
+            e.destroy();
+            saveEchoToServer();
+            setTimeout(() => spawnEnemy(scene), 2000);
+        }
+    });
+}
+
+function doDash(scene) {
+    if(isDashing) return;
     isDashing = true;
-    player.setTint(0xffffff); // Feedback visual (Invencible)
-    player.setAlpha(0.5); // Efecto fantasma
-    
-    // Efecto "Bullet Time" simulado (hacer enemigos lentos)
-    enemies.children.iterate(child => child.body.velocity.scale(0.1));
-
-    setTimeout(() => {
-        isDashing = false;
-        player.setTint(0x00aaff);
-        player.setAlpha(1);
-    }, 250); // Dura 250ms
+    player.setAlpha(0.3);
+    // Efecto de rastro fantasma
+    scene.tweens.add({ targets: player, scale: 1.5, duration: 100, yoyo: true });
+    setTimeout(() => { isDashing = false; player.setAlpha(1); }, 400);
 }
 
-function attack() {
-    if (!canAttack) return;
-    
-    // Efecto visual de golpe
-    let slash = player.scene.add.rectangle(player.x, player.y, 80, 80, 0xffff00, 0.4);
-    setTimeout(() => slash.destroy(), 100);
+function spawnEnemy(scene) {
+    let e = scene.physics.add.sprite(Phaser.Math.Between(100, scene.scale.width-100), -50, 'p_glow').setTint(0xff4444);
+    enemies.add(e);
+}
 
-    // Detectar impacto
-    let hit = false;
-    enemies.children.iterate((enemy) => {
-        if (enemy && enemy.active && Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y) < 80) {
-            // Drop de Eco
-            let echo = echoes.create(enemy.x, enemy.y, 'base').setScale(0.5).setTint(0x00ff00);
-            
-            enemy.destroy();
-            hit = true;
-        }
-    });
-
-    if (hit) {
-        // Respawn de enemigo tras 2 segundos
-        setTimeout(() => spawnEnemy(enemies), 2000);
+function createExplosion(scene, x, y) {
+    for(let i=0; i<10; i++) {
+        let p = scene.add.rectangle(x, y, 4, 4, 0x00f2ff);
+        scene.physics.add.existing(p);
+        p.body.setVelocity(Phaser.Math.Between(-200, 200), Phaser.Math.Between(-200, 200));
+        scene.tweens.add({ targets: p, alpha: 0, duration: 500, onComplete: () => p.destroy() });
     }
 }
 
-function spawnEnemy(group) {
-    let x = Phaser.Math.Between(50, 750);
-    let y = Phaser.Math.Between(50, 550);
-    group.create(x, y, 'base').setTint(0xff0000);
-}
-
-function takeDamage(player, enemy) {
-    if (isDashing) return; // Si estás haciendo dash, eres inmune
-    
-    // Aquí iría lógica de vida (Flash rojo)
-    player.setTint(0xff0000);
-    setTimeout(() => player.setTint(0x00aaff), 100);
-}
-
-function collectEcho(player, echo) {
-    echo.disableBody(true, true);
-    
-    // Feedback UI
-    document.getElementById('status').innerText = "Guardando Eco...";
-
-    // --- GUARDADO EN BACKEND (Usando rutas relativas) ---
+function saveEchoToServer() {
     fetch('/api/save-echo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userId, echoType: 'Shadow_Warrior' })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ userId: 'dev_user', type: 'Tacet_Core' })
     })
     .then(res => res.json())
     .then(data => {
-        console.log("Inventario:", data.inventory);
-        document.getElementById('status').innerText = `¡Eco Capturado! Total: ${data.inventory.length}`;
-    })
-    .catch(err => {
-        console.error(err);
-        document.getElementById('status').innerText = "Error al guardar";
+        document.getElementById('echo-count').innerText = data.count;
+    });
+}
+
+function update() {
+    let s = isDashing ? 800 : 300;
+    player.setVelocity(moveVec.x * s, moveVec.y * s);
+    enemies.children.iterate(e => {
+        if(e) game.scene.scenes[0].physics.moveToObject(e, player, 80);
     });
 }
